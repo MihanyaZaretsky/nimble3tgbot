@@ -2,20 +2,45 @@ require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
 
-// Простая инициализация бота без сложной логики
+// Проверяем, что токен есть
+if (!process.env.BOT_TOKEN) {
+  console.error('❌ BOT_TOKEN не найден в переменных окружения!');
+  process.exit(1);
+}
+
+// Инициализация бота с проверкой на существующие сессии
 const bot = new TelegramBot(process.env.BOT_TOKEN, { 
-  polling: true,
-  webHook: false,
-  polling_options: {
-    interval: 100,
-    autoStart: true,
-    params: {
-      timeout: 5
-    }
-  }
+  polling: false, // Сначала не запускаем polling
+  webHook: false
 });
 
 console.log('🤖 Nimble Roulette Bot инициализирован');
+
+// Функция для безопасного запуска бота
+async function startBot() {
+  try {
+    console.log('🔄 Запуск бота...');
+    await bot.startPolling({
+      interval: 100,
+      params: {
+        timeout: 5
+      }
+    });
+    console.log('✅ Бот успешно запущен!');
+  } catch (error) {
+    if (error.code === 'ETELEGRAM' && error.response?.body?.error_code === 409) {
+      console.error('❌ Обнаружена конфликтующая сессия! Остановите другие экземпляры бота.');
+      console.error('💡 Решение:');
+      console.error('   1. Остановите локальный бот (Ctrl+C)');
+      console.error('   2. Убедитесь, что на Render только один экземпляр');
+      console.error('   3. Перезапустите приложение');
+      process.exit(1);
+    } else {
+      console.error('❌ Ошибка запуска бота:', error.message);
+      process.exit(1);
+    }
+  }
+}
 
 // Создание Express сервера для Web App
 const app = express();
@@ -202,12 +227,16 @@ app.get('/', (req, res) => {
   `);
 });
 
-// Запуск сервера
+// Запуск сервера и бота
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Сервер запущен на порту ${PORT}`);
   console.log(`🌐 Web App доступен по адресу: http://localhost:${PORT}`);
-  console.log(`🤖 Nimble Roulette Bot готов к работе!`);
-  console.log(`📱 Используйте команду /start для начала работы`);
+  
+  // Запускаем бота после запуска сервера
+  startBot().then(() => {
+    console.log(`🤖 Nimble Roulette Bot готов к работе!`);
+    console.log(`📱 Используйте команду /start для начала работы`);
+  });
 });
 
 // Обработка graceful shutdown
