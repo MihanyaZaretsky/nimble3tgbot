@@ -2,6 +2,9 @@ require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
 
+// Проверяем, что мы в продакшене (на Render)
+const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER;
+
 // Инициализация бота с настройками для избежания дублирования
 const bot = new TelegramBot(process.env.BOT_TOKEN, { 
   polling: true,
@@ -16,6 +19,22 @@ const bot = new TelegramBot(process.env.BOT_TOKEN, {
     }
   }
 });
+
+// Остановка всех предыдущих сессий при запуске (только в продакшене)
+if (isProduction) {
+  bot.stopPolling().then(() => {
+    console.log('🛑 Предыдущие сессии остановлены');
+    // Запускаем новую сессию через 2 секунды
+    setTimeout(() => {
+      bot.startPolling();
+      console.log('✅ Новая сессия запущена');
+    }, 2000);
+  }).catch(err => {
+    console.log('ℹ️ Нет активных сессий для остановки');
+  });
+} else {
+  console.log('🖥️ Локальная разработка - пропускаем остановку сессий');
+}
 
 // Создание Express сервера для Web App
 const app = express();
