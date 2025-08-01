@@ -2,38 +2,20 @@ require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
 
-// Проверяем, что мы в продакшене (на Render)
-const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER;
-
-// Инициализация бота с настройками для быстрой работы
+// Простая инициализация бота без сложной логики
 const bot = new TelegramBot(process.env.BOT_TOKEN, { 
   polling: true,
   webHook: false,
-  // Уменьшаем интервал polling для быстрого ответа
   polling_options: {
-    interval: 100, // Быстрее опрашиваем сервер
+    interval: 100,
     autoStart: true,
     params: {
-      timeout: 5 // Уменьшаем timeout
+      timeout: 5
     }
   }
 });
 
-// Остановка всех предыдущих сессий при запуске (только в продакшене)
-if (isProduction) {
-  bot.stopPolling().then(() => {
-    console.log('🛑 Предыдущие сессии остановлены');
-    // Запускаем новую сессию быстрее
-    setTimeout(() => {
-      bot.startPolling();
-      console.log('✅ Новая сессия запущена');
-    }, 500); // Уменьшили задержку с 2000ms до 500ms
-  }).catch(err => {
-    console.log('ℹ️ Нет активных сессий для остановки');
-  });
-} else {
-  console.log('🖥️ Локальная разработка - пропускаем остановку сессий');
-}
+console.log('🤖 Nimble Roulette Bot инициализирован');
 
 // Создание Express сервера для Web App
 const app = express();
@@ -43,18 +25,9 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static('public'));
 
-// Флаг для отслеживания уже отправленных сообщений (уменьшили время блокировки)
-const sentMessages = new Set();
-
 // Обработка команды /start
 bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
-  
-  // Проверяем, не отправляли ли мы уже сообщение на этот chatId
-  if (sentMessages.has(chatId)) {
-    return;
-  }
-  
   const username = msg.from.first_name;
   
   const welcomeMessage = `🎰 Добро пожаловать в *Nimble Roulette*, ${username}! 🎰
@@ -75,23 +48,12 @@ bot.onText(/\/start/, async (msg) => {
   };
 
   try {
-    // Отмечаем, что сообщение отправлено сразу
-    sentMessages.add(chatId);
-    
     await bot.sendMessage(chatId, welcomeMessage, {
       parse_mode: 'Markdown',
       reply_markup: keyboard
     });
-    
-    // Удаляем отметку через 2 секунды (быстрее)
-    setTimeout(() => {
-      sentMessages.delete(chatId);
-    }, 2000);
-    
   } catch (error) {
     console.error('Ошибка при отправке сообщения:', error);
-    // Убираем блокировку при ошибке
-    sentMessages.delete(chatId);
   }
 });
 
