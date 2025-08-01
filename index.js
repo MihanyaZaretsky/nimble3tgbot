@@ -2,8 +2,20 @@ require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
 
-// Инициализация бота
-const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
+// Инициализация бота с настройками для избежания дублирования
+const bot = new TelegramBot(process.env.BOT_TOKEN, { 
+  polling: true,
+  // Добавляем настройки для избежания дублирования сообщений
+  webHook: false,
+  // Увеличиваем интервал polling для стабильности
+  polling_options: {
+    interval: 300,
+    autoStart: true,
+    params: {
+      timeout: 10
+    }
+  }
+});
 
 // Создание Express сервера для Web App
 const app = express();
@@ -13,9 +25,19 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static('public'));
 
+// Флаг для отслеживания уже отправленных сообщений
+const sentMessages = new Set();
+
 // Обработка команды /start
 bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id;
+  const messageId = msg.message_id;
+  
+  // Проверяем, не отправляли ли мы уже сообщение на этот chatId
+  if (sentMessages.has(chatId)) {
+    return;
+  }
+  
   const username = msg.from.first_name;
   
   const welcomeMessage = `🎰 Добро пожаловать в *Nimble Roulette*, ${username}! 🎰
@@ -40,6 +62,15 @@ bot.onText(/\/start/, async (msg) => {
       parse_mode: 'Markdown',
       reply_markup: keyboard
     });
+    
+    // Отмечаем, что сообщение отправлено
+    sentMessages.add(chatId);
+    
+    // Удаляем отметку через 5 секунд, чтобы можно было снова использовать команду
+    setTimeout(() => {
+      sentMessages.delete(chatId);
+    }, 5000);
+    
   } catch (error) {
     console.error('Ошибка при отправке сообщения:', error);
   }
@@ -191,10 +222,22 @@ app.get('/', (req, res) => {
 });
 
 // Запуск сервера
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Сервер запущен на порту ${PORT}`);
   console.log(`🌐 Web App доступен по адресу: http://localhost:${PORT}`);
+  console.log(`🤖 Nimble Roulette Bot готов к работе!`);
+  console.log(`📱 Используйте команду /start для начала работы`);
 });
 
-console.log('🤖 Nimble Roulette Bot запущен!');
-console.log('📱 Используйте команду /start для начала работы'); 
+// Обработка graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('🛑 Получен сигнал SIGTERM, завершаем работу...');
+  bot.stopPolling();
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('🛑 Получен сигнал SIGINT, завершаем работу...');
+  bot.stopPolling();
+  process.exit(0);
+}); 
