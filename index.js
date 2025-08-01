@@ -11,13 +11,35 @@ if (!process.env.BOT_TOKEN) {
 console.log('🤖 Инициализация Nimble Roulette Bot...');
 console.log('🔑 Токен найден:', process.env.BOT_TOKEN.substring(0, 10) + '...');
 
-// Простая инициализация бота
+// Инициализация бота с обработкой конфликтов
 const bot = new TelegramBot(process.env.BOT_TOKEN, { 
-  polling: true,
+  polling: false, // Сначала не запускаем
   webHook: false
 });
 
 console.log('✅ Бот инициализирован');
+
+// Функция запуска с проверкой конфликтов
+async function startBot() {
+  try {
+    console.log('🔄 Запуск polling...');
+    await bot.startPolling();
+    console.log('✅ Polling запущен успешно!');
+    return true;
+  } catch (error) {
+    if (error.code === 'ETELEGRAM' && error.response?.body?.error_code === 409) {
+      console.error('❌ КОНФЛИКТ: Другой экземпляр бота уже запущен!');
+      console.error('💡 Решение:');
+      console.error('   1. Остановите все локальные боты (Ctrl+C)');
+      console.error('   2. На Render: Settings → Suspend Service');
+      console.error('   3. Подождите 30 секунд и перезапустите');
+      process.exit(1);
+    } else {
+      console.error('❌ Ошибка запуска:', error.message);
+      process.exit(1);
+    }
+  }
+}
 
 // Обработка команды /start
 bot.onText(/\/start/, async (msg) => {
@@ -65,7 +87,13 @@ bot.on('error', (error) => {
 });
 
 bot.on('polling_error', (error) => {
-  console.error('❌ Ошибка polling:', error.message);
+  if (error.code === 'ETELEGRAM' && error.response?.body?.error_code === 409) {
+    console.error('❌ КОНФЛИКТ СЕССИЙ! Останавливаем бота...');
+    bot.stopPolling();
+    process.exit(1);
+  } else {
+    console.error('❌ Ошибка polling:', error.message);
+  }
 });
 
 // Express сервер
@@ -178,13 +206,27 @@ app.get('/', (req, res) => {
   `);
 });
 
-// Запуск сервера
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Сервер запущен на порту ${PORT}`);
-  console.log(`🌐 Web App доступен по адресу: https://nimble3tgbot.onrender.com`);
-  console.log(`🤖 Бот готов к работе!`);
-  console.log(`📱 Используйте команду /start для начала работы`);
-});
+// Запуск бота и сервера
+async function main() {
+  try {
+    // Сначала запускаем бота
+    await startBot();
+    console.log('🤖 Бот готов к работе!');
+    
+    // Потом сервер
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Сервер запущен на порту ${PORT}`);
+      console.log(`🌐 Web App доступен по адресу: https://nimble3tgbot.onrender.com`);
+      console.log(`📱 Используйте команду /start для начала работы`);
+    });
+  } catch (error) {
+    console.error('❌ Ошибка запуска:', error.message);
+    process.exit(1);
+  }
+}
+
+// Запускаем
+main();
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
