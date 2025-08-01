@@ -8,54 +8,21 @@ if (!process.env.BOT_TOKEN) {
   process.exit(1);
 }
 
-// Инициализация бота с проверкой на существующие сессии
+console.log('🤖 Инициализация Nimble Roulette Bot...');
+console.log('🔑 Токен найден:', process.env.BOT_TOKEN.substring(0, 10) + '...');
+
+// Простая инициализация бота
 const bot = new TelegramBot(process.env.BOT_TOKEN, { 
-  polling: false, // Сначала не запускаем polling
+  polling: true,
   webHook: false
 });
 
-console.log('🤖 Nimble Roulette Bot инициализирован');
-
-// Функция для безопасного запуска бота
-async function startBot() {
-  try {
-    console.log('🔄 Запуск бота...');
-    await bot.startPolling({
-      interval: 100,
-      params: {
-        timeout: 5
-      }
-    });
-    console.log('✅ Бот успешно запущен!');
-  } catch (error) {
-    if (error.code === 'ETELEGRAM' && error.response?.body?.error_code === 409) {
-      console.error('❌ Обнаружена конфликтующая сессия! Остановите другие экземпляры бота.');
-      console.error('💡 Решение:');
-      console.error('   1. Остановите локальный бот (Ctrl+C)');
-      console.error('   2. Убедитесь, что на Render только один экземпляр');
-      console.error('   3. Перезапустите приложение');
-      process.exit(1);
-    } else {
-      console.error('❌ Ошибка запуска бота:', error.message);
-      process.exit(1);
-    }
-  }
-}
-
-// Создание Express сервера для Web App
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Middleware для парсинга JSON
-app.use(express.json());
-app.use(express.static('public'));
-
-// РЕГИСТРИРУЕМ ОБРАБОТЧИКИ ДО ЗАПУСКА POLLING
-console.log('📝 Регистрация обработчиков команд...');
+console.log('✅ Бот инициализирован');
 
 // Обработка команды /start
 bot.onText(/\/start/, async (msg) => {
-  console.log('🎯 Получена команда /start от:', msg.from.first_name);
+  console.log('🎯 ПОЛУЧЕНА КОМАНДА /start от:', msg.from.first_name);
+  
   const chatId = msg.chat.id;
   const username = msg.from.first_name;
   
@@ -68,7 +35,7 @@ bot.onText(/\/start/, async (msg) => {
   const webAppButton = {
     text: '🎮 Открыть Nimble Roulette',
     web_app: {
-      url: process.env.WEBAPP_URL || 'https://nimble3tgbot.onrender.com'
+      url: 'https://nimble3tgbot.onrender.com'
     }
   };
 
@@ -87,29 +54,9 @@ bot.onText(/\/start/, async (msg) => {
   }
 });
 
-// Обработка callback_query от кнопок
-bot.on('callback_query', async (callbackQuery) => {
-  const chatId = callbackQuery.message.chat.id;
-  
-  try {
-    await bot.answerCallbackQuery(callbackQuery.id);
-  } catch (error) {
-    console.error('Ошибка при обработке callback:', error);
-  }
-});
-
-// Обработка Web App данных
-bot.on('web_app_data', async (msg) => {
-  const chatId = msg.chat.id;
-  const webAppData = msg.web_app_data;
-  
-  console.log('Получены данные от Web App:', webAppData);
-  
-  try {
-    await bot.sendMessage(chatId, '🎉 Данные получены! Скоро здесь будет обработка результатов игры.');
-  } catch (error) {
-    console.error('Ошибка при обработке Web App данных:', error);
-  }
+// Обработка всех сообщений для отладки
+bot.on('message', (msg) => {
+  console.log('📨 Получено сообщение:', msg.text, 'от:', msg.from.first_name);
 });
 
 // Обработка ошибок
@@ -118,17 +65,15 @@ bot.on('error', (error) => {
 });
 
 bot.on('polling_error', (error) => {
-  if (error.code === 'ETELEGRAM' && error.response?.body?.error_code === 409) {
-    console.error('❌ Конфликт сессий! Остановите другие экземпляры бота.');
-    process.exit(1);
-  } else {
-    console.error('❌ Ошибка polling:', error.message);
-  }
+  console.error('❌ Ошибка polling:', error.message);
 });
 
-console.log('✅ Обработчики команд зарегистрированы');
+// Express сервер
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-// Маршруты для Web App
+app.use(express.json());
+
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -220,7 +165,6 @@ app.get('/', (req, res) => {
         </div>
 
         <script>
-            // Инициализация Telegram Web App
             const tg = window.Telegram.WebApp;
             tg.ready();
             tg.expand();
@@ -228,33 +172,21 @@ app.get('/', (req, res) => {
             function closeWebApp() {
                 tg.close();
             }
-
-            // Отправка данных обратно в бота (пример)
-            function sendDataToBot(data) {
-                tg.sendData(JSON.stringify(data));
-            }
         </script>
     </body>
     </html>
   `);
 });
 
-// Запускаем бота СНАЧАЛА
-startBot().then(() => {
-  console.log(`🤖 Nimble Roulette Bot готов к работе!`);
+// Запуск сервера
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Сервер запущен на порту ${PORT}`);
+  console.log(`🌐 Web App доступен по адресу: https://nimble3tgbot.onrender.com`);
+  console.log(`🤖 Бот готов к работе!`);
   console.log(`📱 Используйте команду /start для начала работы`);
-  
-  // ТОЛЬКО ПОТОМ запускаем сервер
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Сервер запущен на порту ${PORT}`);
-    console.log(`🌐 Web App доступен по адресу: http://localhost:${PORT}`);
-  });
-}).catch((error) => {
-  console.error('❌ Не удалось запустить бота:', error.message);
-  process.exit(1);
 });
 
-// Обработка graceful shutdown
+// Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('🛑 Получен сигнал SIGTERM, завершаем работу...');
   bot.stopPolling();
