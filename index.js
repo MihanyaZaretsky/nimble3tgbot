@@ -109,11 +109,16 @@ bot.on('web_app_data', async (msg) => {
 
 // Обработка ошибок
 bot.on('error', (error) => {
-  console.error('Ошибка бота:', error);
+  console.error('❌ Ошибка бота:', error.message);
 });
 
 bot.on('polling_error', (error) => {
-  console.error('Ошибка polling:', error);
+  if (error.code === 'ETELEGRAM' && error.response?.body?.error_code === 409) {
+    console.error('❌ Конфликт сессий! Остановите другие экземпляры бота.');
+    process.exit(1);
+  } else {
+    console.error('❌ Ошибка polling:', error.message);
+  }
 });
 
 // Маршруты для Web App
@@ -227,16 +232,19 @@ app.get('/', (req, res) => {
   `);
 });
 
-// Запуск сервера и бота
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Сервер запущен на порту ${PORT}`);
-  console.log(`🌐 Web App доступен по адресу: http://localhost:${PORT}`);
+// Запускаем бота СНАЧАЛА
+startBot().then(() => {
+  console.log(`🤖 Nimble Roulette Bot готов к работе!`);
+  console.log(`📱 Используйте команду /start для начала работы`);
   
-  // Запускаем бота после запуска сервера
-  startBot().then(() => {
-    console.log(`🤖 Nimble Roulette Bot готов к работе!`);
-    console.log(`📱 Используйте команду /start для начала работы`);
+  // ТОЛЬКО ПОТОМ запускаем сервер
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Сервер запущен на порту ${PORT}`);
+    console.log(`🌐 Web App доступен по адресу: http://localhost:${PORT}`);
   });
+}).catch((error) => {
+  console.error('❌ Не удалось запустить бота:', error.message);
+  process.exit(1);
 });
 
 // Обработка graceful shutdown
