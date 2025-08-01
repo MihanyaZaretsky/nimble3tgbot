@@ -50,8 +50,12 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static('public'));
 
+// РЕГИСТРИРУЕМ ОБРАБОТЧИКИ ДО ЗАПУСКА POLLING
+console.log('📝 Регистрация обработчиков команд...');
+
 // Обработка команды /start
 bot.onText(/\/start/, async (msg) => {
+  console.log('🎯 Получена команда /start от:', msg.from.first_name);
   const chatId = msg.chat.id;
   const username = msg.from.first_name;
   
@@ -64,7 +68,7 @@ bot.onText(/\/start/, async (msg) => {
   const webAppButton = {
     text: '🎮 Открыть Nimble Roulette',
     web_app: {
-      url: process.env.WEBAPP_URL || 'https://example.com'
+      url: process.env.WEBAPP_URL || 'https://nimble3tgbot.onrender.com'
     }
   };
 
@@ -77,8 +81,9 @@ bot.onText(/\/start/, async (msg) => {
       parse_mode: 'Markdown',
       reply_markup: keyboard
     });
+    console.log('✅ Сообщение отправлено пользователю:', username);
   } catch (error) {
-    console.error('Ошибка при отправке сообщения:', error);
+    console.error('❌ Ошибка при отправке сообщения:', error);
   }
 });
 
@@ -120,6 +125,8 @@ bot.on('polling_error', (error) => {
     console.error('❌ Ошибка polling:', error.message);
   }
 });
+
+console.log('✅ Обработчики команд зарегистрированы');
 
 // Маршруты для Web App
 app.get('/', (req, res) => {
